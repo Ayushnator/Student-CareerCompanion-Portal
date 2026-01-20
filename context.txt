@@ -1,0 +1,108 @@
+# Project Context: Student Nexus
+
+## Overview
+Student Nexus is a MERN stack application designed as a complete ecosystem for students. It bridges the gap between academic learning, skill development, and career placement.
+
+## Architecture
+*   **Monorepo Structure:** Separate `client` and `server` directories.
+*   **Frontend:** React (Vite) Single Page Application (SPA).
+    *   **State Management:** Context API (specifically `AuthContext` for user session).
+    *   **API Layer:** Centralized `http.js` module wraps `fetch` calls, handling `Authorization` headers (Bearer token) and base URL configuration.
+    *   **Routing:** `react-router-dom` for client-side routing with `ProtectedRoute` wrappers.
+    *   **Vite Config:** configured to proxy `/api` requests to the backend (default `http://localhost:5001`) to avoid CORS issues during development, running on port 3000.
+*   **Backend:** RESTful API with Express/Node.js.
+*   **Database:** MongoDB for persistent storage of users, resumes, jobs, resources, etc.
+
+## Core Modules (Deep Dive)
+
+### 1. Authentication
+*   **Frontend:**
+    *   **Context:** `AuthContext.jsx` manages `user` and `token` state.
+    *   **Storage:** Tokens are stored in `localStorage` under the key `student_nexus_token`. User data is stored under `student_nexus_user`.
+    *   **Flow:** `Login.jsx`/`Signup.jsx` call `authApi` -> `http.js` -> Server. On success, `AuthContext` updates state and storage.
+*   **Backend:**
+    *   **Implementation:** `server/controllers/authController.js`
+    *   **Flow:** User signs up/in -> JWT issued -> returned in response.
+    *   **Middleware:** `authMiddleware.js` verifies JWT from `Authorization` header.
+*   **Roles:**
+    *   `basic`: Default role. Read-only access to most content creation features.
+    *   `guide`: Can create content (Jobs, Subjects, Resources). Must be requested and approved.
+    *   `admin`: Full control.
+
+### 2. Resume Suite
+*   **Files:** `Resume.js` (Model), `resumeController.js` (Logic), `ResumeBuilder.jsx` (UI).
+*   **Features:**
+    *   **Parsing:** Uses `pdf-parse` to extract text from uploaded PDFs, then sends to Gemini AI to structure into JSON.
+    *   **Generation:** Uses `html2pdf.js` on the client side to render the DOM element to a PDF file.
+    *   **Limits:** Enforces 5 resumes per user to prevent database bloat. 5MB upload limit via `multer`.
+
+### 3. Job Aggregator
+*   **Files:** `Job.js` (Model), `jobController.js` (Logic), `JobAggregator.jsx` (UI).
+*   **Recommendation Logic:**
+    *   Extracts skills (Technical, Soft, Tools) from the user's selected resume.
+    *   Performs a MongoDB `$text` search on the `Job` collection to find internal matches.
+    *   Constructs deep-link URLs for external platforms (LinkedIn, Indeed) using the top skills + "Developer" + Location as query parameters.
+
+### 4. AI Integration
+*   **Provider:** Google Gemini (via `@google/generative-ai` SDK).
+*   **Usage:**
+    *   Resume Parsing (Unstructured Text -> JSON).
+    *   Resume Analysis (Scoring & Feedback).
+    *   AI Mentor (Chat interface).
+    *   Mock Interview (Roleplay).
+
+### 5. DSA Visualizer
+*   **Concept:** Client-side only module.
+*   **Implementation:** Uses React state to represent arrays/grids. Algorithms (Sorting, Pathfinding) are implemented as async functions that `await` a delay to create the animation effect.
+
+## Database Schema Relationships
+*   **User:** Root entity.
+*   **Resume:** Belongs to User (1:N).
+*   **Job:** Posted by User (1:N).
+*   **Resource:** Belongs to Subject (1:N). Subject belongs to User.
+
+## Environment Variables
+*   `MONGO_URI`: Database connection string.
+*   `JWT_SECRET`: Key for signing tokens.
+*   `GEMINI_API_KEY`: Google AI API key.
+*   `PORT`: Server port (default 5000, though client proxy often expects 5001).
+*   `VITE_API_URL`: Client environment variable for backend URL (default `http://localhost:5001/api`).
+
+## Deployment Considerations
+*   **Frontend:** Can be deployed on Vercel/Netlify.
+*   **Backend:** Requires a Node.js environment (Render, Railway, Heroku).
+*   **Database:** MongoDB Atlas.
+
+## Project File Structure
+
+```
+studentcompanion/
+├── client/
+│   ├── public/
+│   ├── src/
+│   │   ├── api/                # API service layers (http.js, auth.js, etc.)
+│   │   ├── components/         # Reusable UI components
+│   │   │   ├── dsa/            # DSA specific components
+│   │   │   ├── Navbar.jsx
+│   │   │   └── ProtectedRoute.jsx
+│   │   ├── contexts/           # React Contexts (AuthContext)
+│   │   ├── pages/              # Route pages (Login, Dashboard, etc.)
+│   │   ├── App.jsx             # Main App component with Routes
+│   │   └── main.jsx            # Entry point
+│   ├── .env.example
+│   ├── index.html
+│   ├── package.json
+│   └── vite.config.js          # Vite configuration (Proxy, Port 3000)
+├── server/
+│   ├── config/                 # Database configuration
+│   ├── controllers/            # Request handlers
+│   ├── middleware/             # Express middleware (auth)
+│   ├── models/                 # Mongoose models
+│   ├── routes/                 # API route definitions
+│   ├── uploads/                # Temp storage for uploads
+│   ├── .env.example
+│   ├── package.json
+│   └── server.js               # Entry point
+├── README.md
+└── context.txt
+```
